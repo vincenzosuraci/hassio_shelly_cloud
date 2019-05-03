@@ -1,14 +1,17 @@
+import datetime
 from datetime import timedelta
 import logging
 import voluptuous as vol
 import requests
 import hashlib
+import time
 
 from homeassistant.const import (CONF_USERNAME, CONF_PASSWORD, CONF_SCAN_INTERVAL)
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv, discovery
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.event import async_track_time_interval
 
 """ Setting log """
 _LOGGER = logging.getLogger('shelly_cloud_init')
@@ -28,13 +31,19 @@ SIGNAL_UPDATE_ENTITY = 'shelly_cloud_update'
 HA_SWITCH = 'switch'
 
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=10)
+DEFAULT_SHELLY_CLOUD_DEVICES_SCAN_INTERVAL = timedelta(minutes=15)
+
+CONF_SHELLY_CLOUD_DEVICES_SCAN_INTERVAL = 'shelly_cloud_devices_scan_interval'
 
 CONFIG_SCHEMA = vol.Schema({
     DOMAIN: vol.Schema({
         vol.Required(CONF_PASSWORD): cv.string,
         vol.Required(CONF_USERNAME): cv.string,
 
-        vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): cv.time_period,
+        vol.Optional(CONF_SCAN_INTERVAL,
+                     default=DEFAULT_SCAN_INTERVAL): cv.time_period,
+        vol.Optional(CONF_SHELLY_CLOUD_DEVICES_SCAN_INTERVAL,
+                     default=DEFAULT_SHELLY_CLOUD_DEVICES_SCAN_INTERVAL): cv.time_period,
     })
 }, extra=vol.ALLOW_EXTRA)
 
@@ -72,6 +81,10 @@ class ShellyCloudPlatform:
         self._hass = hass
         self._config = config
 
+        # scan intervals
+        self.update_devices_status_interval = config[DOMAIN][CONF_SCAN_INTERVAL]
+        self.discover_devices_interval = config[DOMAIN][CONF_SHELLY_CLOUD_DEVICES_SCAN_INTERVAL]
+
         # Shelly Cloud credentials
         self._username = config[DOMAIN][CONF_USERNAME]
         self._password = config[DOMAIN][CONF_PASSWORD]
@@ -80,14 +93,69 @@ class ShellyCloudPlatform:
         self._data = self.login()
 
         # if we have data, get device list
+        self.devices = {}
+        self.devices_status = {}
         if self._data:
             self.devices = self.get_device_list()
             if self.devices:
                 self.devices_status = self.get_devices_status()
-                _LOGGER.debug(self._devices_status)
 
         # switch discovery
+        self._discovered_switches_device_ids = []
         self.discover_switches()
+
+        # starting timers
+        hass.async_create_task(self.async_start_timer())
+
+    async def async_start_timer(self):
+
+        # This is used to update the Meross Devices status periodically
+        _LOGGER.info('Shelly Cloud devices status will be updated each ' + str(self.update_devices_status_interval))
+        async_track_time_interval(self._hass,
+                                  self.async_update_devices,
+                                  self.update_devices_status_interval)
+
+        # This is used to discover new Meross Devices periodically
+        _LOGGER.info('Shelly Cloud devices list will be updated each ' + str(self.discover_devices_interval))
+        async_track_time_interval(self._hass,
+                                  self.async_discover_devices,
+                                  self.discover_devices_interval)
+
+        return True
+
+    async def async_update_devices(self, now=None):
+
+        # monitor the duration in millis
+        # registering starting timestamp in ms
+        start_ms = int(round(time.time() * 1000))
+
+        _LOGGER.debug('async_update_plugs() >>> STARTED at ' + str(now))
+
+        self.devices_status = self.get_devices_status()
+
+        _LOGGER.debug('async_update_plugs() <<< TERMINATED')
+
+        # registering ending timestamp in ms
+        end_ms = int(round(time.time() * 1000))
+        duration_ms = end_ms - start_ms
+        duration_s = int(round(duration_ms / 1000))
+        duration_td = datetime.timedelta(seconds=duration_s)
+        if duration_td > self.update_devices_status_interval:
+            _LOGGER.warning('Updating the Shelly Cloud devices status took ' + str(duration_td))
+
+        return True
+
+    async def async_discover_devices(self, now=None):
+
+        _LOGGER.debug('async_discover_plugs >>> STARTED at ' + str(now))
+
+        # get all the registered devices
+        self.devices = self.get_device_list()
+        self.discover_switches()
+
+        _LOGGER.debug('async_discover_plugs <<< FINISHED')
+
+        return True
 
     def login(self):
         # login url
@@ -113,13 +181,44 @@ class ShellyCloudPlatform:
                 _LOGGER.error(error_title + ' : ' + error_message)
         return False
 
+    def get_device_switch_status(self, device_id, channel):
+        # check if device is present in the list
+        if device_id in self.devices_status:
+            # get device status info
+            device_status_info = self.devices_status[device_id]
+            # check if the device channel is on
+            if channel < len(device_status_info['relays']):
+                return device_status_info['relays'][channel]['ison']
+            else:
+                _LOGGER.warning('get_device_switch_status() >>> channel ' +
+                                str(channel) + ' in device id ' +
+                                str(device_id) + ' not found')
+        else:
+            _LOGGER.warning('get_device_switch_status() >>> device id ' +
+                            str(device_id) + ' not found')
+        # otherwise, return false
+        return False
+
+    def get_device_availability(self, device_id):
+        # check if device is present in the list
+        if device_id in self.devices_status:
+            # get device status info
+            device_status_info = self.devices_status[device_id]
+            # check if the device is connected to the cloud
+            if device_status_info['cloud']['connected']:
+                # return the enabled value
+                return device_status_info['cloud']['enabled']
+        else:
+            _LOGGER.warning('get_device_availability() >>> device id ' +
+                            str(device_id) + ' not found')
+        # otherwise, return false
+        return False
+
     def get_device_list(self):
         # device list url
         url = 'https://shelly-2-eu.shelly.cloud/interface/device/list'
-        # set POST https params
-        params = {'Authorization': 'Bearer ' + self._data['token']}
         # get response
-        response = requests.post(url, params)
+        response = requests.post(url, headers = {'Authorization': 'Bearer ' + self._data['token']})
         # get dict of POST response
         data = response.json()
         # check if everything is Ok
@@ -136,10 +235,8 @@ class ShellyCloudPlatform:
     def get_devices_status(self):
         # device list url
         url = 'https://shelly-2-eu.shelly.cloud/device/all_status'
-        # set POST https params
-        params = {'Authorization': 'Bearer ' + self._data['token']}
         # get response
-        response = requests.post(url, params)
+        response = requests.post(url, headers = {'Authorization': 'Bearer ' + self._data['token']})
         # get dict of POST response
         data = response.json()
         # check if everything is Ok
@@ -157,9 +254,9 @@ class ShellyCloudPlatform:
         # control url
         url = 'https://shelly-2-eu.shelly.cloud/device/relay/control'
         # set POST https params
-        params = {'id': id, 'channel': channel, 'turn': turn, 'Authorization': 'Bearer ' + self._data['token']}
+        params = {'id': id, 'channel': channel, 'turn': turn}
         # get response
-        response = requests.post(url, params)
+        response = requests.post(url, params, headers = {'Authorization': 'Bearer ' + self._data['token']})
         # get dict of POST response
         data = response.json()
         # check if everything is Ok
@@ -174,15 +271,16 @@ class ShellyCloudPlatform:
         return False
 
     def discover_switches(self):
-        for device_id, device_info in self.devices:
-            if 'switches_discovered' not in device_info:
-                device_info['switches_discovered'] = True
-                self._hass.async_create_task(
-                    discovery.async_load_platform(self._hass,
-                                                  HA_SWITCH,
-                                                  DOMAIN,
-                                                  {'shelly_cloud_device_id': device_id},
-                                                  self._config))
+        if self.devices:
+            for device_id, device_info in self.devices.items():
+                if device_id not in self._discovered_switches_device_ids:
+                    self._discovered_switches_device_ids.append(device_id)
+                    self._hass.async_create_task(
+                        discovery.async_load_platform(self._hass,
+                                                      HA_SWITCH,
+                                                      DOMAIN,
+                                                      {'shelly_cloud_device_id': device_id},
+                                                      self._config))
 
 # ----------------------------------------------------------------------------------------------------------------------
 #

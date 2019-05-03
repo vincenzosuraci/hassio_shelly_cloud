@@ -21,22 +21,25 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     else:
         ha_entities = []
 
+        # get shelly device id
         shelly_cloud_device_id = discovery_info.get('shelly_cloud_device_id')
+        # check if shelly is in the device list
         if shelly_cloud_device_id not in hass.data[DOMAIN].devices:
+            # error: the device id is not in the list...
             keys = str(hass.data[DOMAIN].devices.keys())
             _LOGGER.error('uuid ' + shelly_cloud_device_id + ' is not in ' + keys)
         else:
-            # get the shelly_cloud plug
-            shelly_cloud_device = hass.data[DOMAIN].devices[shelly_cloud_device_id]
+            # get the shelly_cloud device info
+            shelly_cloud_device_info = hass.data[DOMAIN].devices[shelly_cloud_device_id]
             # get the shelly_cloud device name
-            shelly_cloud_device_name = shelly_cloud_device['name']
-            # num of channels...
-            channels = shelly_cloud_device['channels_count']
+            shelly_cloud_device_name = shelly_cloud_device_info['name']
+            # get the num of channels
+            channels = shelly_cloud_device_info['channels_count']
             for shelly_cloud_switch_channel in range(0, channels):
                 suffix = ''
-                if channels > 0:
+                if channels > 1:
                     suffix = '_'+str(shelly_cloud_switch_channel)                
-                # creiamo una entità Home Assistant di tipo shelly_cloudSwitchEntity
+                # creiamo una entità Home Assistant di tipo ShellyCloudSwitchEntity
                 switch = ShellyCloudSwitchEntity(hass,
                                                  shelly_cloud_device_id,
                                                  shelly_cloud_device_name,
@@ -58,17 +61,9 @@ class ShellyCloudSwitchEntity(ShellyCloudEntity, SwitchDevice):
     def __init__(self, hass, shelly_cloud_device_id, shelly_cloud_device_name, shelly_cloud_switch_channel, suffix):
 
         # attributes
-        self._is_on = False
+        self._is_on = hass.data[DOMAIN].get_device_switch_status(shelly_cloud_device_id, shelly_cloud_switch_channel)
         self._shelly_cloud_switch_channel = shelly_cloud_switch_channel
-        self._shelly_cloud_plug = hass.data[DOMAIN].shelly_cloud_switch_by_id[shelly_cloud_device_id]
-
-        # add entity to the shelly_cloud_plug
-        shelly_cloud_device = self._shelly_cloud_plug.device
-        shelly_cloud_device_online = shelly_cloud_device.online
-        self._shelly_cloud_plug.switch_states[shelly_cloud_switch_channel] = {
-            'available':  shelly_cloud_device_online,
-            'is_on': self._is_on,
-            }
+        self._shelly_cloud_device_id = shelly_cloud_device_id
 
         # naming
         shelly_cloud_switch_name = str(shelly_cloud_switch_channel)
@@ -77,6 +72,7 @@ class ShellyCloudSwitchEntity(ShellyCloudEntity, SwitchDevice):
         _LOGGER.debug(shelly_cloud_device_name + ' >>> ' + shelly_cloud_switch_name + ' >>> __init__()')        
 
         # init shelly_cloudEntity
+        shelly_cloud_device_online = hass.data[DOMAIN].get_device_availability(shelly_cloud_device_id)
         super().__init__(hass,
                          shelly_cloud_device_id,
                          shelly_cloud_device_name,
@@ -85,23 +81,13 @@ class ShellyCloudSwitchEntity(ShellyCloudEntity, SwitchDevice):
                          shelly_cloud_device_online)
 
     async def async_execute_switch_and_set_status(self):
-        _LOGGER.debug(self._shelly_cloud_device_name + ' >>> ' + self._shelly_cloud_entity_name +
-                      ' >>> async_execute_switch_and_set_status()')
-        shelly_cloud_plug = self.hass.data[DOMAIN].shelly_cloud_switch_by_id[self._shelly_cloud_device_id]
-        shelly_cloud_device = shelly_cloud_plug.device
-        if shelly_cloud_device is None:
-            _LOGGER.error(self._shelly_cloud_device_name + ' is None')
-            return False
-        elif not shelly_cloud_device.online:
-            _LOGGER.warning(self._shelly_cloud_device_name + ' is not online')
-            shelly_cloud_plug.switch_states[self._shelly_cloud_switch_channel]['available'] = False
-            return False
+        id = self._shelly_cloud_device_id
+        channel = self._shelly_cloud_switch_channel
+        if self._is_on:
+            self.hass.data[DOMAIN].set_device_channel(id, channel, 'on')
         else:
-            if self._is_on:
-                shelly_cloud_device.turn_on_channel(self._shelly_cloud_switch_channel)
-            else:
-                shelly_cloud_device.turn_off_channel(self._shelly_cloud_switch_channel)
-            shelly_cloud_plug.switch_states[self._shelly_cloud_switch_channel]['is_on'] = self._is_on
+            self.hass.data[DOMAIN].set_device_channel( id, channel, 'off')
+        self.hass.data[DOMAIN].devices_status[id]['relays'][channel]['ison'] = self._is_on
         return True
 
     async def async_turn_on(self):
@@ -117,16 +103,18 @@ class ShellyCloudSwitchEntity(ShellyCloudEntity, SwitchDevice):
         return self.hass.async_add_job(self.async_execute_switch_and_set_status)
 
     async def async_update(self):
+        id = self._shelly_cloud_device_id
+        channel = self._shelly_cloud_switch_channel
         _LOGGER.debug(self._shelly_cloud_device_name + ' >>> ' +
                       self._shelly_cloud_entity_name + ' >>> async_update()')
-        updated_is_on = self._shelly_cloud_plug.switch_states[self._shelly_cloud_switch_channel]['is_on']
+        updated_is_on = self.hass.data[DOMAIN].get_device_switch_status(id, channel)
         if updated_is_on != self._is_on:
             _LOGGER.info(self._shelly_cloud_device_name + ' >>> ' +
                          self._shelly_cloud_entity_name + ' >>> switching from ' +
                          str(self._is_on) + ' to ' +
                          str(updated_is_on))
         self._is_on = updated_is_on
-        self._available = self._shelly_cloud_plug.switch_states[self._shelly_cloud_switch_channel]['available']
+        self._available = self.hass.data[DOMAIN].get_device_availability(id)
         return True
 
     @property
