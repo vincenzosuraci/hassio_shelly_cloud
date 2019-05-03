@@ -1,0 +1,8 @@
+{
+  "domain": "shelly_cloud",
+  "name": "Shelly Cloud",
+  "documentation": "https://github.com/vincenzosuraci/hassio_shelly_cloud",
+  "dependencies": [],
+  "codeowners": ["@vincenzosuraci"],
+  "requirements": []
+}
