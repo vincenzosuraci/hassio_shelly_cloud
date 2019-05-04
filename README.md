@@ -62,10 +62,9 @@ It means that there will be always a **small delay** between an action and the r
 In particular:
 - acting a on/off switch on HA should result in an (almost) instantaneous effect on the device and the Shelly mobile App;
 - acting a on/off switch on the Shelly mobile App, should result in an (almost) instantaneous effect on the device, but you have to wait up to `scan_interval` seconds before it updates on HA;
-- electricity values (power, voltage, currant) are updated approx each `scan_interval` seconds before it updates on HA;
 - unplugging a device will be detected after several `scan_interval` cycles (normally less than a minute);
 - plugging in a device will be detected within `scan_interval` seconds;
-- registering a new device (to the associated Shelly account) will be detected within `shelly_devices_scan_interval` seconds;
+- registering a new device (to the associated Shelly account) will be detected within `shelly_cloud_devices_scan_interval` seconds;
 - unregistering a device (from the associated Shelly account) will be detected after a HA reboot.
 
 Debug
