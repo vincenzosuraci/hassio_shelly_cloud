@@ -8,7 +8,7 @@ How it works
     - You don't need to activate the Mqtt on your devices, so you don't lose the Cloud service;
     - You can monitor and control your devices even outside the LAN, even if the LAN is behind a CGNAT. 
 - It supports only the switch entities of HA (to turn on and off the devices)
-- The work has been done reverse engineering the HTTP messages between a browser and the Shelly Cloud server. 
+- The work has been done reverse engineering the HTTP messages between a browser and the [Shelly Cloud web server](https://my.shelly.cloud). 
 Any change in the HTTP message exchange can affect the custom-component.
 
 Devices
