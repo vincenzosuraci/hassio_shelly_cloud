@@ -3,7 +3,7 @@
    
 How it works
 ============
-- It implements an **time-driven (polling) strategy** to catch data from the Shelly Cloud server and to send commands.
+- It implements a **time-driven (polling) strategy** to catch data from the Shelly Cloud server and to send commands.
 - The main advantages of this approach are:
     - You don't need to activate the Mqtt on your devices, so you don't lose the Cloud service;
     - You can monitor and control your devices even outside the LAN, even if the LAN is behind a CGNAT. 
