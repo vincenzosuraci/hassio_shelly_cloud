@@ -1,5 +1,8 @@
 # hassio_shelly_cloud
 - A Home Assistant (HA) custom-component for [Shelly Cloud](https://shelly.cloud/) devices.
+   
+How it works
+============
 - It implements an **event-driven (polling) strategy** to catch data from the Shelly Cloud server and to send commands.
 - The main advantages of this approach are:
     - You don't need to activate the Mqtt on your devices, so you don't lose the Cloud service;
@@ -7,7 +10,9 @@
 - It supports only the switch entities of HA (to turn on and off the devices)
 - The work has been done reverse engineering the HTTP messages between a browser and the Shelly Cloud server. 
 Any change in the HTTP message exchange can affect the custom-component.
-   
+
+Example of discovered switches:<br/>
+<img src="res/shelly_cloud_swithces.png" alt="Switches" />
 
 Devices
 ============
@@ -15,7 +20,9 @@ Devices
 The custom-component is intended to manage the [Shelly Cloud](https://shelly.cloud/) devices. 
 
 The custom-component will discover the Shelly devices associated to your Shelly account and will add switches and 
-sensors (measuring the electricity: power, voltage and current) in HA.
+sensors (measuring the electricity: power, voltage and current) in HA, as shown in the figure below:
+
+
   
 
 Install
