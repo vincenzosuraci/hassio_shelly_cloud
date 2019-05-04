@@ -16,8 +16,7 @@ Devices
 
 The custom-component is intended to manage the [Shelly Cloud](https://shelly.cloud/) devices. 
 
-The custom-component will discover the Shelly devices associated to your Shelly account and will add switches and 
-sensors (measuring the electricity: power, voltage and current) in HA, as shown in the figure below:
+The custom-component will discover the Shelly devices associated to your Shelly account and will add switches in HA, as shown in the figure below:
 
 <img src="res/shelly_cloud_switches.png" alt="Switches" height="200px"/>
   
