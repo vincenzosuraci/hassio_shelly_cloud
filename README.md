@@ -32,8 +32,7 @@ config
     └── shelly_cloud
         └── __init__.py
         └── manifest.json
-        └── switch.py
-        └── sensor.py
+        └── switch.py        
 ```
 
 2. Remember to **reboot** Hassio (or Home Assistant)
