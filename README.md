@@ -24,7 +24,7 @@ The custom-component will discover the Shelly devices associated to your Shelly 
 Install
 ============
 
-1. Copy all the `.py` and `manifest.json` files into your `/config/custom_components/meross` folder.
+1. Copy all the `.py` and `manifest.json` files into your `/config/custom_components/shelly_cloud` folder.
 - Your configuration should look like:
 ```
 config
