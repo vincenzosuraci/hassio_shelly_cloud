@@ -12,7 +12,7 @@ How it works
 Any change in the HTTP message exchange can affect the custom-component.
 
 Example of discovered switches:<br/>
-<img src="res/shelly_cloud_swithces.png" alt="Switches" />
+<img src="res/shelly_cloud_switches.png" alt="Switches" />
 
 Devices
 ============
