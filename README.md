@@ -11,9 +11,6 @@ How it works
 - The work has been done reverse engineering the HTTP messages between a browser and the Shelly Cloud server. 
 Any change in the HTTP message exchange can affect the custom-component.
 
-Example of discovered switches:<br/>
-<img src="res/shelly_cloud_switches.png" alt="Switches" height="200px"/>
-
 Devices
 ============
 
@@ -22,7 +19,7 @@ The custom-component is intended to manage the [Shelly Cloud](https://shelly.clo
 The custom-component will discover the Shelly devices associated to your Shelly account and will add switches and 
 sensors (measuring the electricity: power, voltage and current) in HA, as shown in the figure below:
 
-
+<img src="res/shelly_cloud_switches.png" alt="Switches" height="200px"/>
   
 
 Install
