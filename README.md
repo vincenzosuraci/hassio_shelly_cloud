@@ -76,6 +76,6 @@ Debug
 logger:
   default: WARNING
   logs:
-    shelly_init: DEBUG    
-    shelly_switch: DEBUG    
+    shelly_cloud_init: DEBUG    
+    shelly_cloud_switch: DEBUG    
 ```
