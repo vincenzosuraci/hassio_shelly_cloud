@@ -77,7 +77,6 @@ Debug
 logger:
   default: WARNING
   logs:
-    shelly_sensor: DEBUG
-    shelly_switch: DEBUG
-    shelly_init: DEBUG
+    shelly_init: DEBUG    
+    shelly_switch: DEBUG    
 ```
