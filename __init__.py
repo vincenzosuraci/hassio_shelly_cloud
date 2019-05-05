@@ -13,13 +13,15 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.event import async_track_time_interval
 
+import socketio
+
 """ Setting log """
 _LOGGER = logging.getLogger('shelly_cloud_init')
 _LOGGER.setLevel(logging.DEBUG)
 
 """ This is needed to ensure shelly_cloud_iot library is always updated """
 """ Ref: https://developers.home-assistant.io/docs/en/creating_integration_manifest.html"""
-REQUIREMENTS = []
+REQUIREMENTS = ['python-socketio[asyncio_client]']
 
 """ This is needed, it impact on the name to be called in configurations.yaml """
 """ Ref: https://developers.home-assistant.io/docs/en/creating_integration_manifest.html"""
@@ -66,6 +68,79 @@ async def async_setup(hass, config):
 
     return True
 
+
+# ----------------------------------------------------------------------------------------------------------------------
+#
+# SHELLY WEBSOCKET
+# - from time-driven (polling) to event-driven strategy
+#
+# ----------------------------------------------------------------------------------------------------------------------
+
+#   EXAMPLE:
+#   socket = io(
+#       notifications_url,
+#       {   secure: true,
+#           reconnection: true,
+#           path: '/shelly/wss/sock'
+#       });
+#   console.log('******************SOCKET*********************');
+#   console.log(socket);
+#   // on connection - authenticate
+#   socket.on('connect', function () {
+#       console.log('**********SOCKET CONNECT****************');
+#       console.log(socket);
+#       socket.emit(    'auth',
+#                       {name: name, auth: auth}
+#                   );
+#       online_status.set_status(true, true, true);
+#       });
+
+async def async_socketio(hass, config):
+
+    _LOGGER.info('async_socketio()')
+
+    params = {
+        'secure': True,
+        'reconnection': True,
+        'path': '/shelly/wss/sock',
+    }
+
+    sio = socketio.AsyncClient(params)
+
+    notifications_urls = hass.data[DOMAIN].get_notifications_urls()
+
+    _LOGGER.info(notifications_urls)
+
+    if len(notifications_urls) > 0:
+
+        name = hass.data[DOMAIN].username
+        auth = hass.data[DOMAIN].auth
+
+        notifications_url = notifications_urls[0]
+
+        _LOGGER.info('socketio connecting to ' + notifications_url)
+        await sio.connect(notifications_url)
+        _LOGGER.info('connected!')
+
+        @sio.on('connect')
+        async def on_connect():
+            _LOGGER.info('I\'m connected!')
+            await sio.emit('auth', {'name': name, 'auth': auth})
+
+        @sio.on('message')
+        async def on_message(data):
+            _LOGGER.info('I received a message!')
+            _LOGGER.info(str(data))
+
+        @sio.on('my message')
+        async def on_message(data):
+            _LOGGER.info('I received a custom message!')
+            _LOGGER.info(str(data))
+
+        @sio.on('disconnect')
+        async def on_disconnect():
+            _LOGGER.info('I\'m disconnected!')
+
 # ----------------------------------------------------------------------------------------------------------------------
 #
 # Shelly Cloud Platform
@@ -86,11 +161,16 @@ class ShellyCloudPlatform:
         self.discover_devices_interval = config[DOMAIN][CONF_SHELLY_CLOUD_DEVICES_SCAN_INTERVAL]
 
         # Shelly Cloud credentials
-        self._username = config[DOMAIN][CONF_USERNAME]
+        self.username = config[DOMAIN][CONF_USERNAME]
         self._password = config[DOMAIN][CONF_PASSWORD]
 
         # do login and get data (False otherwise...)
+        self.auth = None
         self._data = self.login()
+        if self._data:
+            self.auth = self._data['token']
+            # start websocket
+            hass.async_create_task(async_socketio(hass, config))
 
         # if we have data, get device list
         self.devices = {}
@@ -105,7 +185,7 @@ class ShellyCloudPlatform:
         self.discover_switches()
 
         # starting timers
-        hass.async_create_task(self.async_start_timer())
+        # hass.async_create_task(self.async_start_timer())
 
     async def async_start_timer(self):
 
@@ -161,7 +241,7 @@ class ShellyCloudPlatform:
         # login url
         url = 'https://api.shelly.cloud/auth/login'
         # get e-mail
-        email = self._username
+        email = self.username
         # get sha1 password
         sha1_password = hashlib.sha1(self._password.encode('utf-8')).hexdigest()
         # set POST https params
@@ -234,9 +314,9 @@ class ShellyCloudPlatform:
 
     def get_devices_status(self):
         # device list url
-        url = 'https://shelly-2-eu.shelly.cloud/device/all_status'
+        url = 'https://shelly-2-eu.shelly.cloud/device/all_status?_=' + str(time.time())
         # get response
-        response = requests.post(url, headers = {'Authorization': 'Bearer ' + self._data['token']})
+        response = requests.get(url, headers = {'Authorization': 'Bearer ' + self._data['token']})
         # get dict of POST response
         data = response.json()
         # check if everything is Ok
@@ -270,6 +350,10 @@ class ShellyCloudPlatform:
                 _LOGGER.error(error_title + ' : ' + error_message)
         return False
 
+    def get_notifications_urls(self):
+        if self._data:
+            return self._data['notifications_urls']
+
     def discover_switches(self):
         if self.devices:
             for device_id, device_info in self.devices.items():
@@ -281,6 +365,7 @@ class ShellyCloudPlatform:
                                                       DOMAIN,
                                                       {'shelly_cloud_device_id': device_id},
                                                       self._config))
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 #

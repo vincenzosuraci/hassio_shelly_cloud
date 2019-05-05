@@ -4,5 +4,5 @@
   "documentation": "https://github.com/vincenzosuraci/hassio_shelly_cloud",
   "dependencies": [],
   "codeowners": ["@vincenzosuraci"],
-  "requirements": []
+  "requirements": ["python-socketio[asyncio_client]"]
 }
