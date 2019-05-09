@@ -31,22 +31,29 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         else:
             # get the shelly_cloud device info
             shelly_cloud_device_info = hass.data[DOMAIN].devices[shelly_cloud_device_id]
+            # get the shelly_cloud device status
+            shelly_cloud_device_status = hass.data[DOMAIN].devices_status[shelly_cloud_device_id]
             # get the shelly_cloud device name
             shelly_cloud_device_name = shelly_cloud_device_info['name']
-            # get the num of channels
-            channels = shelly_cloud_device_info['channels_count']
-            for shelly_cloud_switch_channel in range(0, channels):
-                suffix = ''
-                if channels > 1:
-                    suffix = '_'+str(shelly_cloud_switch_channel)                
-                # creiamo una entità Home Assistant di tipo ShellyCloudSwitchEntity
-                switch = ShellyCloudSwitchEntity(hass,
-                                                 shelly_cloud_device_id,
-                                                 shelly_cloud_device_name,
-                                                 shelly_cloud_switch_channel,
-                                                 suffix)
-                # aggiungiamola alle entità da aggiungere
-                ha_entities.append(switch)
+            if 'relays' in shelly_cloud_device_status:
+                # get the num of channels
+                channels = len(shelly_cloud_device_status['relays'])
+                for shelly_cloud_switch_channel in range(0, channels):
+                    suffix = ''
+                    if channels > 1:
+                        suffix = '_'+str(shelly_cloud_switch_channel)
+                    # creiamo una entità Home Assistant di tipo ShellyCloudSwitchEntity
+                    _LOGGER.info('registering switch: '
+                                 'id ' + shelly_cloud_device_id + ', ' +
+                                 'name ' + shelly_cloud_device_name + ', ' +
+                                 'channel ' + str(shelly_cloud_switch_channel))
+                    switch = ShellyCloudSwitchEntity(hass,
+                                                     shelly_cloud_device_id,
+                                                     shelly_cloud_device_name,
+                                                     shelly_cloud_switch_channel,
+                                                     suffix)
+                    # aggiungiamola alle entità da aggiungere
+                    ha_entities.append(switch)
 
         if len(ha_entities) > 0:
             async_add_entities(ha_entities, update_before_add=False)
@@ -71,7 +78,7 @@ class ShellyCloudSwitchEntity(ShellyCloudEntity, SwitchDevice):
         shelly_cloud_entity_id = ENTITY_ID_FORMAT.format(shelly_cloud_switch_id)
         _LOGGER.debug(shelly_cloud_device_name + ' >>> ' + shelly_cloud_switch_name + ' >>> __init__()')        
 
-        # init shelly_cloudEntity
+        # init ShellyCloudEntity
         shelly_cloud_device_online = hass.data[DOMAIN].get_device_availability(shelly_cloud_device_id)
         super().__init__(hass,
                          shelly_cloud_device_id,
@@ -86,7 +93,7 @@ class ShellyCloudSwitchEntity(ShellyCloudEntity, SwitchDevice):
         if self._is_on:
             self.hass.data[DOMAIN].set_device_channel(id, channel, 'on')
         else:
-            self.hass.data[DOMAIN].set_device_channel( id, channel, 'off')
+            self.hass.data[DOMAIN].set_device_channel(id, channel, 'off')
         self.hass.data[DOMAIN].devices_status[id]['relays'][channel]['ison'] = self._is_on
         return True
 

@@ -31,6 +31,7 @@ SIGNAL_DELETE_ENTITY = 'shelly_cloud_delete'
 SIGNAL_UPDATE_ENTITY = 'shelly_cloud_update'
 
 HA_SWITCH = 'switch'
+HA_SENSOR = 'sensor'
 
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=10)
 DEFAULT_SHELLY_CLOUD_DEVICES_SCAN_INTERVAL = timedelta(minutes=15)
@@ -166,13 +167,15 @@ class ShellyCloudPlatform:
 
         # do login and get data (False otherwise...)
         self.auth = None
+        self._user_api_url = None
         self._data = self.login()
         if self._data:
+            self._user_api_url = self._data['user_api_url']
             self.auth = self._data['token']
             # start websocket
-            hass.async_create_task(async_socketio(hass, config))
+            # hass.async_create_task(async_socketio(hass, config))
 
-        # if we have data, get device list
+        # if we have data, get device list and status
         self.devices = {}
         self.devices_status = {}
         if self._data:
@@ -184,8 +187,12 @@ class ShellyCloudPlatform:
         self._discovered_switches_device_ids = []
         self.discover_switches()
 
+        # sensor discovery
+        self._discovered_sensors_device_ids = []
+        self.discover_sensors()
+
         # starting timers
-        # hass.async_create_task(self.async_start_timer())
+        hass.async_create_task(self.async_start_timer())
 
     async def async_start_timer(self):
 
@@ -253,8 +260,10 @@ class ShellyCloudPlatform:
         # check if everything is Ok
         if data['isok']:
             # login was succesful!
+            _LOGGER.info('Login successful')
             return data['data']
         else:
+            _LOGGER.info('Login failed')
             # print errors
             errors = data['errors']
             for error_title, error_message in errors.items():
@@ -266,13 +275,17 @@ class ShellyCloudPlatform:
         if device_id in self.devices_status:
             # get device status info
             device_status_info = self.devices_status[device_id]
-            # check if the device channel is on
-            if channel < len(device_status_info['relays']):
-                return device_status_info['relays'][channel]['ison']
+            if 'relays' in device_status_info:
+                # check if the device channel is on
+                if channel < len(device_status_info['relays']):
+                    return device_status_info['relays'][channel]['ison']
+                else:
+                    _LOGGER.warning('get_device_switch_status() >>> channel ' +
+                                    str(channel) + ' in device id ' +
+                                    str(device_id) + ' not found')
             else:
-                _LOGGER.warning('get_device_switch_status() >>> channel ' +
-                                str(channel) + ' in device id ' +
-                                str(device_id) + ' not found')
+                _LOGGER.warning('get_device_switch_status() >>> device id ' +
+                                str(device_id) + ' has no relays')
         else:
             _LOGGER.warning('get_device_switch_status() >>> device id ' +
                             str(device_id) + ' not found')
@@ -296,17 +309,19 @@ class ShellyCloudPlatform:
 
     def get_device_list(self):
         # device list url
-        url = 'https://shelly-2-eu.shelly.cloud/interface/device/list'
+        url = self._user_api_url + '/interface/device/list'
         # get response
-        response = requests.post(url, headers = {'Authorization': 'Bearer ' + self._data['token']})
+        response = requests.post(url, headers={'Authorization': 'Bearer ' + self._data['token']})
         # get dict of POST response
         data = response.json()
         # check if everything is Ok
         if data['isok']:
+            _LOGGER.info('Device list successful')
             # get_device_list was succesful!
             return data['data']['devices']
         else:
             # print errors
+            _LOGGER.info('Device list failed')
             errors = data['errors']
             for error_title, error_message in errors.items():
                 _LOGGER.error(error_title + ' : ' + error_message)
@@ -314,9 +329,9 @@ class ShellyCloudPlatform:
 
     def get_devices_status(self):
         # device list url
-        url = 'https://shelly-2-eu.shelly.cloud/device/all_status?_=' + str(time.time())
+        url = self._user_api_url + '/device/all_status?_=' + str(time.time())
         # get response
-        response = requests.get(url, headers = {'Authorization': 'Bearer ' + self._data['token']})
+        response = requests.get(url, headers={'Authorization': 'Bearer ' + self._data['token']})
         # get dict of POST response
         data = response.json()
         # check if everything is Ok
@@ -353,6 +368,18 @@ class ShellyCloudPlatform:
     def get_notifications_urls(self):
         if self._data:
             return self._data['notifications_urls']
+
+    def discover_sensors(self):
+        if self.devices:
+            for device_id, device_info in self.devices.items():
+                if device_id not in self._discovered_sensors_device_ids:
+                    self._discovered_sensors_device_ids.append(device_id)
+                    self._hass.async_create_task(
+                        discovery.async_load_platform(self._hass,
+                                                      HA_SENSOR,
+                                                      DOMAIN,
+                                                      {'shelly_cloud_device_id': device_id},
+                                                      self._config))
 
     def discover_switches(self):
         if self.devices:
