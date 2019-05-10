@@ -216,11 +216,11 @@ class ShellyCloudPlatform:
         # registering starting timestamp in ms
         start_ms = int(round(time.time() * 1000))
 
-        _LOGGER.debug('async_update_plugs() >>> STARTED at ' + str(now))
+        _LOGGER.debug('async_update_devices() >>> STARTED at ' + str(now))
 
         self.devices_status = self.get_devices_status()
 
-        _LOGGER.debug('async_update_plugs() <<< TERMINATED')
+        _LOGGER.debug('async_update_devices() <<< TERMINATED')
 
         # registering ending timestamp in ms
         end_ms = int(round(time.time() * 1000))

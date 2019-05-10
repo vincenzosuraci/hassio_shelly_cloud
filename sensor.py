@@ -1,6 +1,6 @@
 import logging
 from datetime import timedelta
-from homeassistant.components.sensor import (DOMAIN, ENTITY_ID_FORMAT)
+from homeassistant.components.sensor import ENTITY_ID_FORMAT
 from custom_components.shelly_cloud import (DOMAIN, ShellyCloudEntity)
 
 # Setting log
@@ -47,9 +47,9 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             for shelly_cloud_sensor_name in shelly_cloud_SENSORS_MAP:
                 if shelly_cloud_sensor_name in shelly_cloud_device_status:
                     _LOGGER.info('registering sensor: '
-                                 'id ' + shelly_cloud_device_id + ', ' +
-                                 'name ' + shelly_cloud_device_name + ', ' +
-                                 'sensor ' + shelly_cloud_sensor_name)
+                                 'id: ' + shelly_cloud_device_id + ', ' +
+                                 'name: ' + shelly_cloud_device_name + ', ' +
+                                 'sensor: ' + shelly_cloud_sensor_name)
                     # creiamo una entità Home Assistant di tipo ShellyCloudSensorEntity
                     sensor = ShellyCloudSensorEntity(hass,
                                                      shelly_cloud_device_id,
@@ -57,6 +57,9 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                                                      shelly_cloud_sensor_name)
                     # aggiungiamola alle entità da aggiungere
                     ha_entities.append(sensor)
+
+        if len(ha_entities) > 0:
+            async_add_entities(ha_entities, update_before_add=False)
 
     _LOGGER.debug('async_setup_platform <<< terminated')
 
@@ -75,8 +78,6 @@ class ShellyCloudSensorEntity(ShellyCloudEntity):
                                                    shelly_cloud_device_id,
                                                    shelly_cloud_SENSORS_MAP[shelly_cloud_sensor_name]['eid'])
         shelly_cloud_entity_id = ENTITY_ID_FORMAT.format(shelly_cloud_sensor_id)
-        _LOGGER.debug(shelly_cloud_device_name + ' >>> ' +
-                      shelly_cloud_sensor_name + ' >>> __init__()')
 
         # init ShellyCloudEntity
         shelly_cloud_device_online = hass.data[DOMAIN].get_device_availability(shelly_cloud_device_id)
@@ -88,11 +89,12 @@ class ShellyCloudSensorEntity(ShellyCloudEntity):
                          shelly_cloud_device_online)
 
     async def async_update(self):
-        _LOGGER.debug(self._shelly_cloud_device_name + ' >>> ' +
-                      self._shelly_cloud_entity_name + ' >>> async_update()')
         id = self._shelly_cloud_device_id
         sensor = self._shelly_cloud_sensor_name
         self._value = self.hass.data[DOMAIN].devices_status[id][sensor]['value']
+        _LOGGER.debug(self._shelly_cloud_device_name + ' >>> ' +
+                      self._shelly_cloud_entity_name + ' >>> async_update() >>> ' +
+                      str(self._value))
         return True
 
     @property
